@@ -8,11 +8,10 @@ rschuldt@uams.edu
 **********************************************************************************************************************************/
 options symbolgen ;
 /* Folder for saving files that will be used for analysis*/
-libname ajmc '********************cores\AJMC Response';
-
+libname ajmc '*****************'
 
 /* Accesss the POS files for ownership*/
-libname pos '*********************h_Policy_Management\Data\POS';
+libname pos '*****************Management\Data\POS';
 
 /*Locate the PUF files for merging*/
 
@@ -20,7 +19,7 @@ libname pos '*********************h_Policy_Management\Data\POS';
 
 %macro import(file, nm, dat, year);
 
-proc import datafile = "***************CC Scores\AJMC Response\&file"
+proc import datafile = "***************s\AJMC Response\&file"
 dbms = csv out = &nm replace;
 run;
 
@@ -32,7 +31,7 @@ data v_&nm;
 	run;
 
 data pos;
-	set "******************y_Management\Data\&dat";
+	set "*****************cy_Management\Data\&dat";
 		keep prvdr_num  FIPS_STATE_CD FIPS_CNTY_CD GNRL_CNTL_TYPE_CD CRTFCTN_DT year tenure nfp fp gov CMS_Certification_Number__CCN_;
 		rename prvdr_num = CMS_Certification_Number__CCN_;
 
@@ -50,7 +49,7 @@ data pos;
 
 	run;
 
-%include '*********************h Work\SAS Macros\infile macros\sort.sas';
+%include '******************t Research Work\SAS Macros\infile macros\sort.sas';
 
 %sort(pos, CMS_Certification_Number__CCN_)
 %sort(v_&nm, CMS_Certification_Number__CCN_)
@@ -69,11 +68,49 @@ run;
 %import(2015m1.csv, m2015, POS\2015\Data\pos_2015.sas7bdat, 2015);
 /*2016*/
 %import(2016m1.csv, m2016, POS\2016\Data\pos_2016.sas7bdat, 2016);
-/*2017*/
-%import(2017m1.csv, m2017, POS\2016\Data\pos_2016.sas7bdat, 2017);
+
 
 /* I have merged together all the POS and HHC data that I require. Now I need to 
 bring in the information from the PUF files to calculate the rest of my variables
 that I need for analysis. I will not do these on macro because they can be more 
 complicated files*/
 
+/*locate the puf files and import for merging onto the data sets*/
+%macro puf(file, stack, year);
+
+proc import file = "****************x\Schuldt Research Work\puffiles\&file"
+dbms = xlsx out = &file replace;
+run;
+
+%sort(&file, provider_id)
+%sort(&stack, provider_id)
+
+
+data puf_&year;
+	merge &file (in = a) &stack (in = b);
+	by provider_id;
+	if a; 
+	run;
+
+
+
+%Mend;
+
+%puf(puf2014, stack_2014, 2014)
+%puf(puf2015, stack_2015, 2015)
+%puf(puf2016, stack_2016, 2016)
+
+/* Created each data set now time to stack the data together*/
+
+data ajmc.repsonse_set;
+	set puf_2014
+		puf_2015
+		puf_2016;
+
+
+	percentt_nonwhite = ((Distinct_Beneficiaries__non_LUPA- White_Beneficiaries)/Distinct_Beneficiaries__non_LUPA)*100;
+
+	run;
+
+proc means data = ajmc.repsonse_set nmiss;
+run;
